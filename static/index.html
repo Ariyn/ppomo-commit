@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>ppomodoro commiter</title>
+</head>
+<body>
+    <div>Ppomodoro commiter</div>
+    <input type="file" id="FileUpload" onchange="selectFolder(event)" webkitdirectory mozdirectory msdirectory odirectory directory multiple />
+</body>
+
+<script type="text/javascript">
+    const { ipcRenderer } = require('electron')
+
+    function selectFolder (e) {
+        let files = e.target.files
+        let path = files[0].path
+        let folder = path.split('/');
+
+        console.log(files, path, folder)
+        
+        let isInitialized = ipcRenderer.sendSync('syncCheckGitInitialized', path)
+        console.log(isInitialized)
+    }
+</script>
+</html>

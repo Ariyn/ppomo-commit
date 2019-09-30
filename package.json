@@ -1,0 +1,15 @@
+{
+  "name": "ppomo-git",
+  "version": "0.0.1",
+  "description": "commit every 25 minutes",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "ariyn",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^6.0.10"
+  }
+}
