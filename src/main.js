@@ -1,4 +1,5 @@
 const { app, BrowserWindow } = require('electron')
+
 require('./systemFunctions')
 
 function createWindow () {
@@ -11,6 +12,10 @@ function createWindow () {
     })
 
     win.loadFile('static/index.html')
+}
+
+var options = {
+    name: 'ppomodoro commiter'
 }
 
 app.on('ready', createWindow)

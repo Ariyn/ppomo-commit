@@ -4,12 +4,13 @@
   "description": "commit every 25 minutes",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron .",
+    "dev": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "ariyn",
   "license": "MIT",
   "dependencies": {
-    "electron": "^6.0.10"
+    "electron": "^6.0.10",
+    "jquery": "^3.4.1"
   }
 }

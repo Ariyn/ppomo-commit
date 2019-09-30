@@ -5,14 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>ppomodoro commiter</title>
+    <script
+        src="https://code.jquery.com/jquery-3.4.1.min.js"
+        integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+        crossorigin="anonymous"></script>
 </head>
 <body>
     <div>Ppomodoro commiter</div>
     <input type="file" id="FileUpload" onchange="selectFolder(event)" webkitdirectory mozdirectory msdirectory odirectory directory multiple />
+    <button id="commitBtn">commit</button>
+
+    <div id="gitStatus">
+        <pre id="gitStatusPre"></pre>
+    </div>
 </body>
 
 <script type="text/javascript">
+    window.$ = window.jQuery = require('jquery')
     const { ipcRenderer } = require('electron')
+    let selectedPath = null
 
     function selectFolder (e) {
         let files = e.target.files
@@ -23,6 +34,37 @@
         
         let isInitialized = ipcRenderer.sendSync('syncCheckGitInitialized', path)
         console.log(isInitialized)
+        if (isInitialized) {
+            ipcRenderer.send('asyncSetGitFolder', path);
+            showGitStatus(path)
+            selectedPath = path
+        }
     }
+
+    function showGitStatus (path) {
+        let status = ipcRenderer.send('asyncGitStatus', (path))
+    }
+
+    function commit (path) {
+        ipcRenderer.send('asyncGitCommit', path);
+    }
+
+    ipcRenderer.on('asyncGitStatus', (event, args) => {
+        console.log(args)
+        if (args.err) {
+            return ;
+        }
+
+        $("#gitStatusPre").html(args.stdout)
+    })
+
+    ipcRenderer.on('asyncSetGitFolder', (event, args) => {
+        console.log(args.status)
+        console.log(args.message)
+    })
+
+    $('#commitBtn').click(() => {
+        commit(selectedPath)
+    })
 </script>
 </html>
