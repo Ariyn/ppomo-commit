@@ -31,22 +31,27 @@ afterEach(async () => {
 
     const { branches, currentBranch } = await gitBranch(PATH)
     if (currentBranch !== 'master') {
+        console.log('current branch is not master')
         await gitCheckout(PATH, 'master', {force: true})
     }
 
-    if (SAMPLE_BRANCH_NAME in branches) {
+    if (branches.includes(SAMPLE_BRANCH_NAME)) {
+        console.log('sample branch is not deleted')
         await gitBranchDelete(PATH, SAMPLE_BRANCH_NAME, {force: true})
     }
 
     const stashes = await gitStash(PATH, {list: true})
-    for(let i in stashes) {
-        // TODO: drop only when name has ppomo_prefix
+    for(let i=0; i<stashes.length; i++) {
         await gitStash(PATH, {drop: true})
     }
 })
 
 test('get git status', async () => {
-    await gitStatus(PATH)
+    expect(await gitStatus(PATH)).toBeDefined()
+})
+
+test('get git files', async () => {
+    expect(await gitLs(PATH)).toEqual(expect.arrayContaining(['sample', 'SAMPLE_NEW']))
 })
 
 test('get git status with not exists path', async () => {

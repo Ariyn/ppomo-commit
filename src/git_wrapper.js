@@ -1,5 +1,6 @@
 const { exec } = require('child_process')
 const iconv = require('iconv-lite')
+const { PPOMO_STASH_PREFIX, PPOMO_COMMIT_PREFIX } = require('./config')
 
 function get_cd_command (path) {
     return 'cd ' + path + ' '
@@ -33,26 +34,12 @@ async function gitStatus(path) {
 }
 
 async function gitBranch (path) {
-    let branches = (await command(path, 'git branch')).split('\n')
-    let currentBranch = null
-
-    let newBranches = []
-    for (let i in branches) {
-        branches[i] = branches[i].trim()
-        if (branches[i].length == 0) {
-            continue
-        }
-
-        if (branches[i].indexOf('* ') == 0) {
-            branches[i] = branches[i].replace('* ', '')
-            currentBranch = branches[i]
-        }
-
-        newBranches.push(branches[i])
-    }
+    let branches = (await command(path, 'git branch')).split('\n').map(branch => branch.trim()).filter(branch => branch.length != 0)
+    let currentBranchIndex = branches.findIndex(branch => branch.indexOf('* ') == 0)
+    let currentBranch = branches[currentBranchIndex] = branches[currentBranchIndex].replace('* ', '')
 
     return {
-        'branches': newBranches,
+        'branches': branches,
         'currentBranch': currentBranch
     }
 }
@@ -70,7 +57,7 @@ async function gitStash (path, options ={}) {
     let option = ''
 
     if (options.push) {
-        option = ' push -a' + (options.name ? ' -m ' + options.name : '')
+        option = ' push -a -m ' + PPOMO_STASH_PREFIX + (options.name ? options.name : '')
     } else if (options.apply) {
         option = ' apply'
     } else if (options.pop) {
@@ -89,22 +76,34 @@ async function gitStash (path, options ={}) {
     const cmd = 'git stash' + option
 
     if (options.list) {
-        let stashes = (await command(path, cmd)).split('\n')
-        let newStashes = []
-
-        for (let i in stashes) {
-            stashes[i] = stashes[i].trim()
-            if (stashes[i].length == 0) {
-                continue
-            }
-
-            newStashes.push(stashes[i])
-        }
-
-        return newStashes
+        let stashes = (await command(path, cmd)).split('\n').map(stash => stash.trim()).filter(stash => stash.length != 0)
+        return collectStashes(stashes)
     } else {
         return command(path, cmd)
     }
+}
+
+function collectStashes (stashList) {
+    // stash@{0}: WIP on master: 2a0c431 init commit
+    let newStashList = []
+    
+    for(let i in stashList) {
+        const datas = stashList[i].split(':')
+        
+        const stashIndex = parseInt(datas[0].trim().replace('stash@{', '').replace())
+        const stashOriginalBranch = datas[1].trim().replace('WIP on ')
+        const message = datas[2]
+        const isPpomoStash = message.startsWith(PPOMO_STASH_PREFIX)
+
+        newStashList.push({
+            index: stashIndex,
+            branch: stashOriginalBranch,
+            message: message,
+            isPpomoStash: isPpomoStash
+        })
+    }
+
+    return newStashList
 }
 
 async function gitCheckout (path, branchName, options ={}) {
@@ -129,18 +128,24 @@ async function gitLog (path, options ={}) {
         branch = ' ' + options.branch
     }
 
-    // TODO: make split option to command function
-    const logs = (await command(path, 'git log --oneline' + branch)).split('\n')
+    const logs = (await command(path, 'git log --pretty=format:"%h%x09%ad%x09%s" --date=iso' + branch)).split('\n').map(log => log.trim()).filter(log => log.length != 0)
     let newLogs = []
 
     for (let i in logs) {
-        if (logs[i].trim().length == 0) {
-            continue
+        const logDetails = logs[i].trim().split('\t')
+        const isPpomoCommit = logDetails[2].startsWith(PPOMO_COMMIT_PREFIX)
+        let index = undefined
+
+        if (isPpomoCommit) {
+            index = parseInt(logDetails[2].replace(PPOMO_COMMIT_PREFIX, ''))
         }
-        const logDetails = logs[i].trim().split(' ')
+
         newLogs.push({
             'hash': logDetails[0],
-            'message': logDetails.slice(1, logDetails.length).join(' ')
+            'date': logDetails[1],
+            'message': logDetails[2],
+            'isPpomoCommit': isPpomoCommit,
+            'index': index
         })
     }
 
@@ -148,17 +153,7 @@ async function gitLog (path, options ={}) {
 }
 
 async function gitLs (path) {
-    const files = (await command(path, 'git ls-files -mo')).split('\n')
-    let newFiles = []
-
-    for (let i in files) {
-        if (files[i].length == 0) {
-            continue
-        }
-        newFiles.push(files[i])
-    }
-
-    return newFiles
+    return (await command(path, 'git ls-files -mo')).split('\n').map(log => log.trim()).filter(log => log.length != 0)
 }
 
 module.exports = {
