@@ -1,2 +1,12 @@
-node_modules/*
-test-git/*
+node_modules/
+test_git/
+.DS_Store
+dist/electron/*
+dist/web/*
+build/*
+!build/icons
+coverage
+npm-debug.log
+npm-debug.log.*
+thumbs.db
+!.gitkeep
