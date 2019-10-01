@@ -2,15 +2,15 @@ const { exec } = require('child_process');
 const iconv = require('iconv-lite');
 const { PPOMO_STASH_PREFIX, PPOMO_COMMIT_PREFIX } = require('./config');
 
-function get_cd_command(path) {
+function getCdCommand(path) {
   return `cd ${path} `;
 }
 
 async function command(path, command) {
-  const cd_command = get_cd_command(path);
+  const cdCommand = getCdCommand(path);
 
   return new Promise((resolve, reject) => {
-    exec(`${cd_command} && ${command}`, { encoding: 'buffer' }, (err, stdout, stderr) => {
+    exec(`${cdCommand} && ${command}`, { encoding: 'buffer' }, (err, stdout, stderr) => {
       if (err) {
         const encodedStderr = iconv.decode(stderr, 'euc-kr').replace('\n', '');
 
@@ -29,13 +29,17 @@ async function command(path, command) {
   });
 }
 
-async function gitStatus(path) {
-  return command(path, 'git status');
+async function gitStatus(path, { branch }) {
+  let options = '';
+  if (branch) {
+    options += ' --branch ' + branch;
+  }
+  return command(path, 'git status' + options);
 }
 
 async function gitBranch(path) {
-  const branches = (await command(path, 'git branch')).split('\n').map(branch => branch.trim()).filter(branch => branch.length != 0);
-  const currentBranchIndex = branches.findIndex(branch => branch.indexOf('* ') == 0);
+  const branches = (await command(path, 'git branch')).split('\n').map(branch => branch.trim()).filter(branch => branch.length !== 0);
+  const currentBranchIndex = branches.findIndex(branch => branch.indexOf('* ') === 0);
   const currentBranch = branches[currentBranchIndex] = branches[currentBranchIndex].replace('* ', '');
 
   return {
@@ -51,6 +55,35 @@ async function gitBranchCreate(path, name) {
 async function gitBranchDelete(path, name, options = {}) {
   const force = options.force ? '-D ' : '-d ';
   return command(path, `git branch ${force}${name}`);
+}
+
+function collectStashes(stashList) {
+  // stash@{0}: WIP on master: 2a0c431 init commit
+  const newStashList = [];
+
+  if (stashList.length === 0) {
+    return newStashList;
+  }
+
+  Object.keys(stashList).forEach((i) => {
+    if (Object.prototype.hasOwnProperty.call(stashList, i)) {
+      const datas = stashList[i].split(':');
+
+      const stashIndex = parseInt(datas[0].trim().replace('stash@{', '').replace(), 10);
+      const stashOriginalBranch = datas[1].trim().replace('WIP on ');
+      const message = datas[2];
+      const isPpomoStash = message.startsWith(PPOMO_STASH_PREFIX);
+
+      newStashList.push({
+        index: stashIndex,
+        branch: stashOriginalBranch,
+        message,
+        isPpomoStash,
+      });
+    }
+  });
+
+  return newStashList;
 }
 
 async function gitStash(path, options = {}) {
@@ -76,33 +109,10 @@ async function gitStash(path, options = {}) {
   const cmd = `git stash${option}`;
 
   if (options.list) {
-    const stashes = (await command(path, cmd)).split('\n').map(stash => stash.trim()).filter(stash => stash.length != 0);
+    const stashes = (await command(path, cmd)).split('\n').map(stash => stash.trim()).filter(stash => stash.length !== 0);
     return collectStashes(stashes);
   }
   return command(path, cmd);
-}
-
-function collectStashes(stashList) {
-  // stash@{0}: WIP on master: 2a0c431 init commit
-  const newStashList = [];
-
-  for (const i in stashList) {
-    const datas = stashList[i].split(':');
-
-    const stashIndex = parseInt(datas[0].trim().replace('stash@{', '').replace());
-    const stashOriginalBranch = datas[1].trim().replace('WIP on ');
-    const message = datas[2];
-    const isPpomoStash = message.startsWith(PPOMO_STASH_PREFIX);
-
-    newStashList.push({
-      index: stashIndex,
-      branch: stashOriginalBranch,
-      message,
-      isPpomoStash,
-    });
-  }
-
-  return newStashList;
 }
 
 async function gitCheckout(path, branchName, options = {}) {
@@ -127,35 +137,37 @@ async function gitLog(path, options = {}) {
     branch = ` ${options.branch}`;
   }
 
-  const logs = (await command(path, `git log --pretty=format:"%h%x09%ad%x09%s" --date=iso${branch}`)).split('\n').map(log => log.trim()).filter(log => log.length != 0);
+  const logs = (await command(path, `git log --pretty=format:"%h%x09%ad%x09%s" --date=iso${branch}`)).split('\n').map(log => log.trim()).filter(log => log.length !== 0);
   const newLogs = [];
 
-  for (const i in logs) {
-    const logDetails = logs[i].trim().split('\t');
-    const isPpomoCommit = logDetails[2].startsWith(PPOMO_COMMIT_PREFIX);
-    let index;
+  Object.keys(logs).forEach((i) => {
+    if (Object.prototype.hasOwnProperty.call(logs, i)) {
+      const logDetails = logs[i].trim().split('\t');
+      const isPpomoCommit = logDetails[2].startsWith(PPOMO_COMMIT_PREFIX);
+      let index;
 
-    if (isPpomoCommit) {
-      index = parseInt(logDetails[2].replace(PPOMO_COMMIT_PREFIX, ''));
+      if (isPpomoCommit) {
+        index = parseInt(logDetails[2].replace(PPOMO_COMMIT_PREFIX, ''), 10);
+      }
+
+      newLogs.push({
+        hash: logDetails[0],
+        date: logDetails[1],
+        message: logDetails[2],
+        isPpomoCommit,
+        index,
+      });
     }
-
-    newLogs.push({
-      hash: logDetails[0],
-      date: logDetails[1],
-      message: logDetails[2],
-      isPpomoCommit,
-      index,
-    });
-  }
+  });
 
   return newLogs;
 }
 
 async function gitLs(path) {
-  return (await command(path, 'git ls-files -mo')).split('\n').map(log => log.trim()).filter(log => log.length != 0);
+  return (await command(path, 'git ls-files -mo')).split('\n').map(log => log.trim()).filter(log => log.length !== 0);
 }
 
-module.exports = {
+export {
   gitStatus,
   gitBranch,
   gitBranchCreate,
