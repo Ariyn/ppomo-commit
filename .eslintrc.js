@@ -6,14 +6,16 @@ module.exports = {
   },
   env: {
     browser: true,
-    node: true
+    node: true,
+    jest: true
   },
   extends: 'airbnb-base',
   globals: {
     __static: true
   },
   plugins: [
-    'html'
+    'html',
+    'jest'
   ],
   'rules': {
     'global-require': 0,
