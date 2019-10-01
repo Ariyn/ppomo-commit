@@ -1,133 +1,132 @@
 const fs = require('fs')
-const { exec } = require('child_process')
-
 const { ipcMain } = require('electron')
 
+const {
+    gitStatus,
+    gitBranch,
+    gitStash,
+    gitCheckout,
+    gitAddAll,
+    gitCommit,
+    gitBranchCreate,
+    gitLog
+} = require('./git_wrapper')
+const { PPOMO_COMMIT_PREFIX } = require('./config')
+
 const BRANCH_NAME = 'ppomo-commit'
-let index = 0;
+let ppomoIndex = 0;
 
 ipcMain.on('syncCheckGitInitialized', (event, folder) => {
+    // is this ok? just check .git folder exists?
+    // should i call git status for test?
     event.returnValue = fs.existsSync(folder + '/.git')
 })
 
-ipcMain.on('asyncSetGitFolder', (event, path) => {
-    setGitFolder(path)
-        .then(() => {
-            event.reply('asyncSetGitFolder', {
-                'status': 'success',
-                'path': path
-            })
-        })
-        .catch((status, message) => {
-            console.log(status, message)
-        })
+ipcMain.on('asyncSetGitFolder', async (event, path) => {
+    const result = await setGitFolder(path)
+    result.path = path
+
+    if (result.err) {
+        console.log(result.msg)
+    } else {
+        ppomoIndex = result.index
+    }
+
+    event.reply('asyncSetGitFolder', result)
 })
 
-ipcMain.on('asyncGitStatus', (event, path) => {    
-    exec('cd '+path+' && git status', (err, stdout, stderr) => {
+ipcMain.on('asyncGitStatus', async (event, path) => {
+    try {
+        const statusString = await gitStatus(path)
         event.reply('asyncGitStatus', {
-            'err': err,
-            'stdout': stdout,
-            'stderr': stderr
+            'msg': statusString
         })
-    })
+    } catch (error) {
+        event.reply('asyncGitStatus', {
+            'err': true,
+            'msg': error
+        })
+    }
+})
+
+ipcMain.on('asyncGitLog', async (event, path) => {
+    const logs = await gitLog(path, {branch: BRANCH_NAME})
+    event.reply('asyncGitLog', logs)
 })
 
 ipcMain.on('asyncGitCommit', (event, path) => {
-    commitGitFolder(path, index)
+    // does this try~catch works?
+    try {
+        commitGitFolder(path, ppomoIndex)
+        ppomoIndex += 1
+
+        event.reply('asyncGitCommit', {
+            'msg': 'success'
+        })
+    } catch (error) {
+        event.reply('asyncGitCommit', {
+            'err': true,
+            'msg': error
+        })
+    }
 })
 
 async function commitGitFolder (path, index) {
-    const currentBranch = await getCurrentBranch(path)
+    const { currentBranch } = await gitBranch(path)
 
-    console.log(currentBranch)
-    return new Promise((resolve, reject) => {
-
-        exec('cd ' + path
-            + ' && git stash push'
-            + ' && git checkout ' + BRANCH_NAME 
-            + ' && git stash apply'
-            + ' && git add -A'
-            + ' && git commit -m "ppommo #' + index + '"'
-            + ' && git checkout -f ' + currentBranch
-            + ' && git stash pop',
-            (err, stdout, stderr) => {
-                console.log(err, stdout, stderr)
-            })
-    })
+    try {
+        await gitStash(path, {push: true, name: '#' + index})
+        await gitCheckout(path, BRANCH_NAME, {force: true})
+        
+        await gitStash(path, {apply: true})
+        await gitAddAll(path)
+        await gitCommit(path, PPOMO_COMMIT_PREFIX + index)
+    
+        await gitCheckout(path, currentBranch, {force: true})
+        await gitStash(path, {apply: true})
+    } catch (error) {
+        console.log(error)
+        throw error
+    }
 }
 
 async function setGitFolder(path) {
-    let hasPpomoCommitBranch = await checkBranch(path);
+    let { branches } = await gitBranch(path)
 
-    if (hasPpomoCommitBranch.status === false) {
-        hasPpomoCommitBranch = await createBranch(path);
+    if (!branches.includes(BRANCH_NAME)) {
+        try {
+            await gitBranchCreate(path, BRANCH_NAME)
+        } catch (error) {
+            return {
+                'err': error,
+                'msg': error.message
+            }
+        }
     }
 
-    return new Promise((resolve, reject) => {
-        if (hasPpomoCommitBranch.status === false) {
-            reject(hasPpomoCommitBranch.message)
-        } else {
-            resolve();
+    let newBranches = (await gitBranch(path)).branches
+    if (!newBranches.includes(BRANCH_NAME)) {
+        return {
+            'err': true,
+            'msg': 'something wrong'
         }
-    })
+    }
+
+    const ppomoIndex = await getLastPpomoIndex(path) + 1
+
+    return {
+        'status': 'success',
+        'index': ppomoIndex
+    }
 }
 
-async function checkBranch (path) {
-    return new Promise((resolve) => {
-        exec('cd ' + path + ' && git branch', (err, stdout, stderr) => {
-            let branches = stdout.split('\n')
-            for (let i in branches) {
-                if (branches[i].indexOf(BRANCH_NAME) !== -1) {
-                    resolve({
-                        status: true,
-                        message: stdout
-                    })
-                }
-            }
+async function getLastPpomoIndex (path) {
+    const logs = await gitLog(path, {branch: BRANCH_NAME})
+    const latestLog = logs.filter(log => log.isPpomoCommit).sort((a, b) => {a.index - b.index}).reverse()[0]
 
-            resolve({
-                status: false,
-                message: stdout 
-            })
-        })
-    })
+    return latestLog.index
 }
 
-async function createBranch (path) {
-    return new Promise((resolve) => {
-        exec('cd ' + path + ' && git branch ' + BRANCH_NAME, (err, stdout, stderr) => {
-            resolve({
-                status: resolve === undefined,
-                message: (resolve === undefined) ? stdout : stderr
-            })
-        })
-    })
+module.exports = {
+    getLastPpomoIndex
 }
-
-async function getBranches (path) {
-    return new Promise((resolve) => {
-        exec('cd ' + path + ' && git branch', (err, stdout, stderr) => {
-            resolve(stdout.split('\n'))
-        })
-    })
-}
-
-async function getCurrentBranch (path) {
-    const branches = await getBranches(path)
-    let currentBranch = null;
-
-    return new Promise((resolve) => {
-        for(let i in branches) {
-            if (branches[i].indexOf('*') == 0) {
-                currentBranch = branches[i].replace('* ', '')
-            }
-        }
-        if (currentBranch) {
-            resolve(currentBranch);
-        } else {
-            reject();
-        }
-    })
-}
-// function createBranch(fo)

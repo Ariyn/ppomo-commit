@@ -5,48 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>ppomodoro commiter</title>
-    <script
-        src="https://code.jquery.com/jquery-3.4.1.min.js"
-        integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
-        crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="../node_modules/bootstrap/dist/css/bootstrap.min.css" />
 </head>
 <body>
-    <div>Ppomodoro commiter</div>
-    <input type="file" id="FileUpload" onchange="selectFolder(event)" webkitdirectory mozdirectory msdirectory odirectory directory multiple />
-    <button id="commitBtn">commit</button>
+    <div id="container">
+        <div>Ppomodoro commiter</div>
 
-    <div id="gitStatus">
-        <pre id="gitStatusPre"></pre>
+        <input type="file" id="FileUpload" onchange="selectFolder(event)" webkitdirectory mozdirectory msdirectory odirectory directory multiple />
+        <button id="commitBtn" class="btn btn-primary">commit</button>
+        <button id="updateStatusBtn" class="btn btn-primary">updateStatus</button>
+        <button id="updateLogsBtn" class="btn btn-primary">updateLogs</button>
+
+        <div id="gitStatus">
+            <div id="gitStatusTitle">Git Status</div>
+            <div id="gitStatusPre"></div>
+        </div>
+
+        <div id="gitLogs">
+            <div id="gitLogsTitle">Git Logs</div>
+            <div id="gitLogsPre">
+                <ul id="gitLogUl"></ul>
+            </div>
+        </div>
     </div>
 </body>
 
+<script>let $ = require('jquery');</script>
+<script>require('popper');</script>
+<script>require('bootstrap');</script>
+
 <script type="text/javascript">
-    window.$ = window.jQuery = require('jquery')
     const { ipcRenderer } = require('electron')
     let selectedPath = null
 
     function selectFolder (e) {
         let files = e.target.files
+        if (files.length == 0) {
+            return;
+        }
         let path = files[0].path
-        let folder = path.split('/');
-
-        console.log(files, path, folder)
         
         let isInitialized = ipcRenderer.sendSync('syncCheckGitInitialized', path)
-        console.log(isInitialized)
+
         if (isInitialized) {
-            ipcRenderer.send('asyncSetGitFolder', path);
-            showGitStatus(path)
+            ipcRenderer.send('asyncSetGitFolder', path)
+            asyncUpdateStatus(path)
+            asyncUpdateLogs(path)
+
             selectedPath = path
         }
     }
 
-    function showGitStatus (path) {
-        let status = ipcRenderer.send('asyncGitStatus', (path))
+    function asyncUpdateStatus (path) {
+        ipcRenderer.send('asyncGitStatus', path)
     }
 
     function commit (path) {
         ipcRenderer.send('asyncGitCommit', path);
+    }
+
+    function asyncUpdateLogs (path) {
+        ipcRenderer.send('asyncGitLog', path)
     }
 
     ipcRenderer.on('asyncGitStatus', (event, args) => {
@@ -55,16 +74,55 @@
             return ;
         }
 
-        $("#gitStatusPre").html(args.stdout)
+        $('#gitStatusPre').html(args.msg)
     })
 
     ipcRenderer.on('asyncSetGitFolder', (event, args) => {
+        console.log(args)
         console.log(args.status)
         console.log(args.message)
+    })
+
+    ipcRenderer.on('asyncGitCommit', (event, args) => {
+        console.log(args)
+        if (args.msg == 'success') {
+            asyncUpdateStatus(selectedPath)
+        }
+    })
+
+    ipcRenderer.on('asyncGitLog', (event, logs) => {
+        console.log(logs)
+        $('#gitLogUl').empty()
+        
+        for(let i in logs) {
+            const log = logs[i]
+            $('#gitLogUl').append('<li>' + new Date(log.date).toISOString() + ' | ' + log.message + '</li>')
+        }
     })
 
     $('#commitBtn').click(() => {
         commit(selectedPath)
     })
+
+    $('#updateStatus').click(() => {
+        asyncUpdateStatus(selectedPath)
+    })
+
+    $('#updateLogsBtn').click(() => {
+        asyncUpdateLogs(selectedPath)
+    })
 </script>
+
+<link rel="stylesheet" href="timer.css">
+<style>
+    #gitStatus {
+        border: 1px solid black;
+    }
+
+    #gitStatusPre {
+    	white-space: pre;
+    	color: black;
+    }
+</style>
+
 </html>
