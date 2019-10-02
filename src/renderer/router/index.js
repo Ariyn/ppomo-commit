@@ -7,12 +7,17 @@ export default new Router({
   routes: [
     {
       path: '/',
-      name: 'GitInfo',
-      component: require('@/components/GitInfo').default,
+      name: 'Landing',
+      component: require('@/components/Landing').default,
     },
     {
       path: '*',
       redirect: '/',
+    },
+    {
+      path: '/clock',
+      name: 'PolarClock',
+      component: require('@/components/PolarClock').default,
     },
   ],
 });
