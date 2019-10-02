@@ -1,4 +1,5 @@
-import { app, BrowserWindow } from 'electron' // eslint-disable-line
+import { app, BrowserWindow, ipcMain } from 'electron' // eslint-disable-line
+import timer from '../Modules/timer';
 
 /**
  * Set `__static` path to static files in production
@@ -12,6 +13,19 @@ let mainWindow;
 const winURL = process.env.NODE_ENV === 'development'
   ? 'http://localhost:9080'
   : `file://${__dirname}/index.html`;
+
+function setEventHandlers(mainWindow, eventContext) {
+  const [contextName] = Object.keys(eventContext);
+  const { eventHandlers } = eventContext[contextName];
+
+  Object.keys(eventHandlers).forEach((key) => {
+    const context = {
+      mainWindow,
+      key: `${contextName}_${key}`, // make function change this into camelcase.
+    };
+    ipcMain.on(context.key, eventHandlers[key].bind(context));
+  });
+}
 
 function createWindow() {
   /**
@@ -28,6 +42,12 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  mainWindow.on('focus', () => {
+    mainWindow.setProgressBar(-1);
+  });
+
+  setEventHandlers(mainWindow, { timer });
 }
 
 app.on('ready', createWindow);

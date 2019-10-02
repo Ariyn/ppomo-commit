@@ -27,7 +27,6 @@ export default {
       timeData: new Date(),
       circularClockSecond: 60 * 30,
 
-      interval: undefined,
       intervalTimer: 1000,
     };
   },
@@ -50,14 +49,22 @@ export default {
       return (this.timeData.getTime() - this.startTime) / 1000;
     },
     timerSecond() {
-      return Math.floor(this.timerTotalSecond % 60);
+      return Math.floor(this.timerTotalSecond % this.circularClockSecond);
     },
     timerMinute() {
-      return Math.floor(this.timerTotalSecond / 60);
+      return Math.floor(this.timerTotalSecond / this.circularClockSecond);
+    },
+    timer() {
+      return [{
+        previousValue: 1 - this.calcInterTime(this.prevTimeData.getTime(), this.startTime),
+        value: 1 - this.calcInterTime(this.timeData.getTime(), this.startTime),
+      }];
     },
   },
   watch: {
     timeData() {
+      this.checkDone();
+      this.sendProgress();
       this.render();
     },
     $route() {
@@ -72,8 +79,9 @@ export default {
 
     this.initSvg();
     this.initTimerSvg();
-    this.setTimerInterval();
     this.initDialSvg();
+
+    this.startTimer();
   },
   methods: {
     initSvg() {
@@ -89,17 +97,22 @@ export default {
 
       d3.select('#timerG')
         .selectAll('path')
-        .data(this.getTime)
+        .data(this.timer)
         .enter()
         .append('path')
         .attr('d', this.arc)
         .style('fill', '#E83345');
     },
-    setTimerInterval() {
-      this.interval = setInterval(() => {
+    startTimer() {
+      // TODO: need 'auto releasing handler'.
+      // TODO: there will be 2 intervals when reload page.
+      this.$electron.ipcRenderer.send('timer_syncStart', { period: this.intervalTimer });
+
+      this.$electron.ipcRenderer.on('timer_syncStart', (event, { newTime, startTime }) => {
         this.prevTimeData = this.timeData;
-        this.timeData = new Date();
-      }, this.intervalTimer);
+        this.timeData = new Date(newTime);
+        this.startTime = new Date(startTime);
+      });
     },
     initDialSvg() {
       d3.select('#dialG')
@@ -130,23 +143,27 @@ export default {
         })
         .text(d => d);
     },
-    getTime() {
-      return [{
-        previousValue: this.calcInterTime(this.prevTimeData.getTime(), this.startTime),
-        value: this.calcInterTime(this.timeData.getTime(), this.startTime),
-      }];
+    checkDone() {
+      if (this.timerSecond === 0) {
+        this.$electron.ipcRenderer.send('timer_asyncStop');
+      }
     },
     calcInterTime(a, b) {
-      return (((a - b) / 1000) % this.circularClockSecond) / this.circularClockSecond;
+      const delta = (a - b) / 1000;
+      return (delta % this.circularClockSecond) / this.circularClockSecond;
     },
     render() {
       d3.select('#timerG')
         .selectAll('path')
-        .data(this.getTime)
+        .data(this.timer)
         .transition()
         .ease(d3.easeElastic)
         .duration(this.transitionDuration)
         .attrTween('d', this.arcTween);
+    },
+    sendProgress() {
+      const progress = (this.timerSecond === 0) ? 1 : (1 - this.timer[0].value);
+      this.$electron.ipcRenderer.send('timer_asyncSetProgress', progress);
     },
     arcTween(d) {
       const interpolateNumber = d3.interpolateNumber(d.previousValue, d.value);
