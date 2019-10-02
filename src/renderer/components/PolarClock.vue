@@ -107,6 +107,12 @@ export default {
       // TODO: need 'auto releasing handler'.
       // TODO: there will be 2 intervals when reload page.
       this.$electron.ipcRenderer.send('timer_syncStart', { period: this.intervalTimer });
+      this.$Noty({
+        text: 'ppomodoro started!',
+        type: 'success',
+        theme: 'bootstrap-v4',
+        timeout: 3000,
+      }).show();
 
       this.$electron.ipcRenderer.on('timer_syncStart', (event, { newTime, startTime }) => {
         this.prevTimeData = this.timeData;
