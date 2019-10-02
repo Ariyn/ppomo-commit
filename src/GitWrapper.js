@@ -1,6 +1,6 @@
 const { exec } = require('child_process');
 const iconv = require('iconv-lite');
-const { PPOMO_STASH_PREFIX, PPOMO_COMMIT_PREFIX } = require('./config');
+const { PPOMO_STASH_PREFIX, PPOMO_COMMIT_PREFIX } = require('./renderer/config');
 
 function getCdCommand(path) {
   return `cd ${path} `;
@@ -20,8 +20,15 @@ async function command(path, command) {
           reject(new Error('same branch name'));
         }
 
-        // console.log("failed " + iconv.decode(stderr, 'utf-8'))
-        reject(iconv.decode(stderr, 'utf-8'));
+        let reason = '';
+        if (stderr) {
+          reason = iconv.decode(stderr, 'utf-8');
+        } else if (stdout) {
+          reason = iconv.decode(stdout, 'utf-8');
+        } else {
+          reason = 'something goes wrong. but there is no stderr or stdout either';
+        }
+        reject(reason);
       }
 
       resolve(iconv.decode(stdout, 'utf-8'));
@@ -32,9 +39,9 @@ async function command(path, command) {
 async function gitStatus(path, { branch }) {
   let options = '';
   if (branch) {
-    options += ' --branch ' + branch;
+    options += ` --branch ${branch}`;
   }
-  return command(path, 'git status' + options);
+  return command(path, `git status${options}`);
 }
 
 async function gitBranch(path) {
@@ -167,15 +174,15 @@ async function gitLs(path) {
   return (await command(path, 'git ls-files -mo')).split('\n').map(log => log.trim()).filter(log => log.length !== 0);
 }
 
-export {
-  gitStatus,
-  gitBranch,
-  gitBranchCreate,
-  gitBranchDelete,
-  gitStash,
-  gitCheckout,
-  gitAddAll,
-  gitCommit,
-  gitLog,
-  gitLs,
+export default {
+  status: gitStatus,
+  branch: gitBranch,
+  branchCreate: gitBranchCreate,
+  branchDelete: gitBranchDelete,
+  stash: gitStash,
+  checkout: gitCheckout,
+  add: gitAddAll,
+  commit: gitCommit,
+  log: gitLog,
+  ls: gitLs,
 };

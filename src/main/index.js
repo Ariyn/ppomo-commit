@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron' // eslint-disable-line
 import timer from '../Modules/timer';
+import git from '../Modules/git';
 
 /**
  * Set `__static` path to static files in production
@@ -23,6 +24,7 @@ function setEventHandlers(mainWindow, eventContext) {
       mainWindow,
       key: `${contextName}_${key}`, // make function change this into camelcase.
     };
+    console.log(`${context.key} has added`);
     ipcMain.on(context.key, eventHandlers[key].bind(context));
   });
 }
@@ -48,6 +50,7 @@ function createWindow() {
   });
 
   setEventHandlers(mainWindow, { timer });
+  setEventHandlers(mainWindow, { git });
 }
 
 app.on('ready', createWindow);
