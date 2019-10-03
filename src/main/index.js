@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from 'electron' // eslint-disable-line
+import path from 'path';
+import { app, BrowserWindow, ipcMain, Menu, Tray } from 'electron' // eslint-disable-line
 import timer from '../Modules/timer';
 import git from '../Modules/git';
 
@@ -7,10 +8,12 @@ import git from '../Modules/git';
  * https://simulatedgreg.gitbooks.io/electron-vue/content/en/using-static-assets.html
  */
 if (process.env.NODE_ENV !== 'development') {
-  global.__static = require('path').join(__dirname, '/static').replace(/\\/g, '\\\\') // eslint-disable-line
+  global.__static = path.join(__dirname, '/static').replace(/\\/g, '\\\\') // eslint-disable-line
 }
 
 let mainWindow;
+let tray;
+
 const winURL = process.env.NODE_ENV === 'development'
   ? 'http://localhost:9080'
   : `file://${__dirname}/index.html`;
@@ -41,6 +44,36 @@ function createWindow() {
 
   mainWindow.loadURL(winURL);
 
+  if (tray === undefined) {
+    tray = new Tray(path.join(__static, 'icon.png'));
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'open window',
+        click: () => {
+          console.log(mainWindow);
+
+          if (mainWindow === null) {
+            createWindow();
+          }
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'exit',
+        click: () => {
+          app.quit();
+        },
+      },
+    ]);
+
+    tray.setToolTip('pomodoro');
+    tray.setContextMenu(contextMenu);
+  }
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -55,10 +88,8 @@ function createWindow() {
 
 app.on('ready', createWindow);
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+app.on('window-all-closed', (e) => {
+  e.preventDefault();
 });
 
 app.on('activate', () => {
