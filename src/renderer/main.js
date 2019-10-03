@@ -6,7 +6,7 @@ import Vue from 'vue';
 import axios from 'axios';
 import Noty from 'noty';
 
-import '../../dist/web/style.css';
+import '../../static/style.css';
 
 import App from './App';
 import router from './router';
