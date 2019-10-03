@@ -1,6 +1,6 @@
 <template>
   <svg id="timerSvg">
-    <g id="timerG"></g>
+    <g id="timerG" v-on:click="startTimer"></g>
     <g id="dialG"></g>
   </svg>
 </template>
@@ -27,6 +27,7 @@ export default {
       timeData: new Date(),
       circularClockSecond: 60 * 30,
 
+      isTimerTicking: false,
       intervalTimer: 1000,
     };
   },
@@ -73,15 +74,28 @@ export default {
     },
   },
   mounted() {
-    // DEBUGING CODE
-    this.startTime = this.startTime - (this.circularClockSecond * 1000 * 0.5);
-    // DEBUGING CODE
-
     this.initSvg();
     this.initTimerSvg();
     this.initDialSvg();
 
-    this.startTimer();
+    this.$electron.ipcRenderer.on('timer_syncStart', (event, { newTime, startTime }) => {
+      this.prevTimeData = this.timeData;
+      this.timeData = new Date(newTime);
+      this.startTime = new Date(startTime);
+
+      this.isTimerTicking = true;
+    });
+
+    this.$electron.ipcRenderer.on('git_asyncGitCommit', () => {
+      this.isTimerTicking = false;
+
+      this.$Noty({
+        text: 'commited!',
+        type: 'success',
+        theme: 'bootstrap-v4',
+        timeout: 3000,
+      }).show();
+    });
   },
   methods: {
     initSvg() {
@@ -106,19 +120,17 @@ export default {
     startTimer() {
       // TODO: need 'auto releasing handler'.
       // TODO: there will be 2 intervals when reload page.
-      this.$electron.ipcRenderer.send('timer_syncStart', { period: this.intervalTimer });
-      this.$Noty({
-        text: 'ppomodoro started!',
-        type: 'success',
-        theme: 'bootstrap-v4',
-        timeout: 3000,
-      }).show();
+      if (this.isTimerTicking === false) {
+        this.$electron.ipcRenderer.send('timer_syncStart', { period: this.intervalTimer });
+        this.$Noty({
+          text: 'ppomodoro started!',
+          type: 'success',
+          theme: 'bootstrap-v4',
+          timeout: 3000,
+        }).show();
 
-      this.$electron.ipcRenderer.on('timer_syncStart', (event, { newTime, startTime }) => {
-        this.prevTimeData = this.timeData;
-        this.timeData = new Date(newTime);
-        this.startTime = new Date(startTime);
-      });
+        this.isTimerTicking = true;
+      }
     },
     initDialSvg() {
       d3.select('#dialG')
@@ -152,6 +164,7 @@ export default {
     checkDone() {
       if (this.timerSecond === 0) {
         this.$electron.ipcRenderer.send('timer_asyncStop');
+        this.$electron.ipcRenderer.send('git_asyncGitCommit');
       }
     },
     calcInterTime(a, b) {
@@ -210,6 +223,9 @@ p, text {
   color: #ddd;
 }
 
+#timerG {
+  cursor: pointer;
+}
 
 #credit a {
   color: inherit;

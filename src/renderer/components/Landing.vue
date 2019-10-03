@@ -12,7 +12,20 @@
 export default {
   name: 'Landing',
   mounted() {
-    // this.
+    this.$electron.ipcRenderer.on('git_asyncSetGitFolder', () => {
+      this.$Noty({
+        text: 'git repo selected!',
+        theme: 'bootstrap-v4',
+        type: 'success',
+        force: true,
+      }).show();
+
+      this.$router.push('/clock');
+    });
+
+    this.$electron.ipcRenderer.on('git_asyncGitCommit', (event, args) => {
+      console.log(args);
+    });
   },
   data() {
     return {
@@ -22,20 +35,9 @@ export default {
   methods: {
     changePath(e) {
       const { path } = e.target.files[0];
-
       const isGitInitialized = this.$electron.ipcRenderer.sendSync('git_syncCheckGitInitialized', path);
+
       if (isGitInitialized) {
-        this.$electron.ipcRenderer.on('git_asyncSetGitFolder', () => {
-          this.$Noty({
-            text: 'git repo selected!',
-            theme: 'bootstrap-v4',
-            type: 'success',
-            force: true,
-          }).show();
-
-          this.$router.push('/clock');
-        });
-
         this.$electron.ipcRenderer.send('git_asyncSetGitFolder', path);
         this.selectedPath = path;
       }
@@ -43,10 +45,6 @@ export default {
     commit() {
       // i need to add listener when mounted. this will add listener every click;
       console.log('commiting');
-      this.$electron.ipcRenderer.on('git_asyncGitCommit', (event, args) => {
-        console.log(args);
-      });
-
       this.$electron.ipcRenderer.send('git_asyncGitCommit');
     },
   },

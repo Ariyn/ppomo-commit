@@ -1,0 +1,8 @@
+#gitInfoWrapper {
+    border: 1px solid black;
+}
+
+#gitStatusPre {
+    white-space: pre;
+    color: black;
+}
