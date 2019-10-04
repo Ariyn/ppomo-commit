@@ -1,8 +1,12 @@
 <template>
-  <svg id="timerSvg">
-    <g id="timerG" v-on:click="startTimer"></g>
-    <g id="dialG"></g>
-  </svg>
+  <div class="container d-flex justify-content-center">
+    <button class="btn btn-primary" v-on:click="resetFolder">select other repo</button>
+    <br />
+    <svg id="timerSvg">
+      <g id="timerG" v-on:click="startTimer"></g>
+      <g id="dialG"></g>
+    </svg>
+  </div>
 </template>
 
 <script>
@@ -16,7 +20,7 @@ export default {
       innerRadius: 15,
       outerRadius: 100,
       cornerRadius: 3,
-      transitionDuration: 300,
+      transitionDuration: 500,
 
       dials: [0, 5, 10, 15, 20, 25],
       dialSpacing: 30,
@@ -28,7 +32,7 @@ export default {
       circularClockSecond: 60 * 30,
 
       isTimerTicking: false,
-      intervalTimer: 1000,
+      intervalTime: 1000,
     };
   },
   computed: {
@@ -64,7 +68,6 @@ export default {
   },
   watch: {
     timeData() {
-      this.checkDone();
       this.sendProgress();
       this.render();
     },
@@ -86,12 +89,27 @@ export default {
       this.isTimerTicking = true;
     });
 
-    this.$electron.ipcRenderer.on('git_asyncGitCommit', () => {
+    this.$electron.ipcRenderer.on('timer_syncStop', () => {
+      this.checkDone();
+    });
+
+    this.$electron.ipcRenderer.on('timer_syncStart', (event, { newTime, startTime }) => {
+      this.prevTimeData = this.timeData;
+      this.timeData = new Date(newTime);
+      this.startTime = new Date(startTime);
+
+      this.isTimerTicking = true;
+    });
+
+    this.$electron.ipcRenderer.on('git_asyncGitCommit', (event, result) => {
       this.isTimerTicking = false;
 
+      const text = result.error ? 'failed to commit!' : 'commit successfully';
+      const type = result.error ? 'error' : 'success';
+
       this.$Noty({
-        text: 'commited!',
-        type: 'success',
+        text,
+        type,
         theme: 'bootstrap-v4',
         timeout: 3000,
       }).show();
@@ -121,7 +139,11 @@ export default {
       // TODO: need 'auto releasing handler'.
       // TODO: there will be 2 intervals when reload page.
       if (this.isTimerTicking === false) {
-        this.$electron.ipcRenderer.send('timer_syncStart', { period: this.intervalTimer });
+        this.$electron.ipcRenderer.send('timer_syncStart', {
+          interval: this.intervalTime,
+          circularClockSecond: this.circularClockSecond,
+        });
+
         this.$Noty({
           text: 'ppomodoro started!',
           type: 'success',
@@ -162,19 +184,17 @@ export default {
         .text(d => d);
     },
     checkDone() {
-      if (this.timerSecond === 0) {
-        this.$electron.ipcRenderer.send('timer_asyncStop');
-        this.$electron.ipcRenderer.send('git_asyncGitCommit');
-      }
     },
     calcInterTime(a, b) {
       const delta = (a - b) / 1000;
       return (delta % this.circularClockSecond) / this.circularClockSecond;
     },
-    render() {
+    render({ timer } = { timer: undefined }) {
+      const timerData = timer !== undefined ? timer : this.timer;
+
       d3.select('#timerG')
         .selectAll('path')
-        .data(this.timer)
+        .data(timerData)
         .transition()
         .ease(d3.easeElastic)
         .duration(this.transitionDuration)
@@ -192,17 +212,15 @@ export default {
         return this.arc(d);
       };
     },
+    resetFolder() {
+      this.$electron.ipcRenderer.sendSync('git_syncRestSelectedGitFolder');
+      this.$router.push('/');
+    },
   },
 };
 </script>
 
 <style>
-body {
-  background: #222;
-  margin: auto;
-  width: 300px;
-}
-
 .arc-text {
   font: 16px sans-serif;
 }
