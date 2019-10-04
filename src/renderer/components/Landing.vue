@@ -1,5 +1,6 @@
 <template>
   <div id="landingWrapper " class="container">
+    <h1 class="bd-title">select git folder to start.</h1>
     <input type="file" name="pathInput" id="pathInput" ref="pathInput" v-if="selectedPath === null" v-on:change="changePath" webkitdirectory mozdirectory msdirectory odirectory directory multiple />
     <span id="selectedPath" v-if="selectedPath">{{selectedPath}}</span>
     <button id="selectOtherPath" class="btn btn-primary" v-if="selectedPath" v-on:click="selectedPath=null">select other</button>
@@ -11,21 +12,27 @@
 <script>
 export default {
   name: 'Landing',
-  mounted() {
-    this.$electron.ipcRenderer.on('git_asyncSetGitFolder', () => {
+  created() {
+    this.$electron.ipcRenderer.once('git_asyncSetGitFolder', () => {
       this.$Noty({
         text: 'git repo selected!',
         theme: 'bootstrap-v4',
         type: 'success',
         force: true,
+        timeout: 3000,
       }).show();
 
       this.$router.push('/clock');
     });
 
-    this.$electron.ipcRenderer.on('git_asyncGitCommit', (event, args) => {
+    this.$electron.ipcRenderer.once('git_asyncGitCommit', (event, args) => {
       console.log(args);
     });
+  },
+  mounted() {
+    if (this.isGitSelected()) {
+      this.$router.push('/clock');
+    }
   },
   data() {
     return {
@@ -46,6 +53,9 @@ export default {
       // i need to add listener when mounted. this will add listener every click;
       console.log('commiting');
       this.$electron.ipcRenderer.send('git_asyncGitCommit');
+    },
+    isGitSelected() {
+      return this.$electron.ipcRenderer.sendSync('git_syncIsGitSelected');
     },
   },
 };
