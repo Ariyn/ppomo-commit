@@ -1,5 +1,5 @@
 const state = {
-  period: 0,
+  interval: 0,
   intervalId: null,
   startTime: 0,
   prevTimeData: 0,
@@ -7,25 +7,36 @@ const state = {
 };
 
 const eventHandlers = {
-  syncStart(event, { period }) {
-    state.period = period;
+  syncStart(event, { interval, circularClockSecond }) {
+    state.interval = interval;
+    state.circularClockSecond = circularClockSecond;
 
     if (state.intervalId === null) {
       state.startTime = state.prevTimeData = state.timeData = new Date();
 
       state.intervalId = setInterval(() => {
+        const now = new Date();
+
         event.sender.send(this.key, {
-          period,
+          interval,
           status: 'success',
-          newTime: new Date(),
+          newTime: now,
           startTime: state.startTime,
         });
-      }, state.period);
+
+        const totalTime = (now.getTime() - state.startTime.getTime()) / 1000;
+        if (state.circularClockSecond - totalTime < 0) {
+          eventHandlers.asyncStop();
+          this.$handlers.call('git_asyncGitCommit', event);
+
+          event.sender.send('timer_syncStop');
+        }
+      }, state.interval);
     }
   },
   asyncStop() {
     clearInterval(state.intervalId);
-    state.intervalId = undefined;
+    state.intervalId = null;
   },
   asyncSetProgress(event, value) {
     this.mainWindow.setProgressBar(value);

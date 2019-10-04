@@ -48,9 +48,9 @@ async function commitGitFolder(path, index) {
 
     await git.checkout(path, currentBranch, { force: true });
     await git.stash(path, { apply: true });
-  } catch (error) {
-    console.log('error', error, path, index);
-    throw error;
+  } catch (ex) {
+    console.log('error', ex, ex.message, path, index);
+    throw ex;
   }
 }
 
@@ -84,21 +84,44 @@ const eventHandlers = {
   },
   async asyncGitCommit(event) {
     console.log('commiting', state.selectedPath);
+    let branches;
+
+    try {
+      branches = await git.branch(state.selectedPath);
+    } catch (error) {
+      console.log('error to select branch', error);
+      event.sender.send(this.key, {
+        error: true,
+        message: error,
+      });
+    }
+
+    console.log('current branch', branches, branches.currentBranch);
 
     try {
       await commitGitFolder(state.selectedPath, state.ppomoIndex);
       state.ppomoIndex += 1;
 
       event.sender.send(this.key, {
-        msg: 'success',
+        message: 'success',
       });
-    } catch (error) {
-      console.log('error', error);
+    } catch (ex) {
+      console.log('error to commit', ex, ex.message);
+      await git.checkout(state.selectedPath, branches.currentBranch, { force: true });
+
       event.sender.send(this.key, {
-        err: true,
-        msg: error,
+        error: true,
+        message: ex.message,
+        command: ex.command,
       });
     }
+  },
+  syncIsGitSelected(event) {
+    event.returnValue = state.selectedPath !== '';
+  },
+  syncRestSelectedGitFolder(event) {
+    state.selectedPath = '';
+    event.returnValue = true;
   },
 };
 
