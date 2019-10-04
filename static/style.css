@@ -6,3 +6,10 @@
     white-space: pre;
     color: black;
 }
+
+html, body {
+    height: 100%;
+    width: 100%;
+    color: #DDD;
+    background-color:#232;
+}
