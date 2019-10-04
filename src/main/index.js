@@ -1,5 +1,7 @@
 import path from 'path';
-import { app, BrowserWindow, ipcMain, Menu, Tray } from 'electron' // eslint-disable-line
+import { app, BrowserWindow, Menu, Tray } from 'electron' // eslint-disable-line
+
+import handlerManager from '../Modules/HandlerManager';
 import timer from '../Modules/timer';
 import git from '../Modules/git';
 
@@ -17,20 +19,6 @@ let tray;
 const winURL = process.env.NODE_ENV === 'development'
   ? 'http://localhost:9080'
   : `file://${__dirname}/index.html`;
-
-function setEventHandlers(mainWindow, eventContext) {
-  const [contextName] = Object.keys(eventContext);
-  const { eventHandlers } = eventContext[contextName];
-
-  Object.keys(eventHandlers).forEach((key) => {
-    const context = {
-      mainWindow,
-      key: `${contextName}_${key}`, // make function change this into camelcase.
-    };
-    console.log(`${context.key} has added`);
-    ipcMain.on(context.key, eventHandlers[key].bind(context));
-  });
-}
 
 function createWindow() {
   /**
@@ -85,8 +73,9 @@ function createWindow() {
     mainWindow.setProgressBar(-1);
   });
 
-  setEventHandlers(mainWindow, { timer });
-  setEventHandlers(mainWindow, { git });
+  console.log(handlerManager);
+  handlerManager.setEventHandlers(mainWindow, { timer });
+  handlerManager.setEventHandlers(mainWindow, { git });
 }
 
 app.on('ready', createWindow);
