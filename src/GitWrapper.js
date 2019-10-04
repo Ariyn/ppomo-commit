@@ -13,22 +13,25 @@ async function command(path, command) {
     exec(`${cdCommand} && ${command}`, { encoding: 'buffer' }, (err, stdout, stderr) => {
       if (err) {
         const encodedStderr = iconv.decode(stderr, 'euc-kr').replace('\n', '');
+        let reason = '';
 
         if (encodedStderr.indexOf('지정된 경로를 찾을 수 없습니다.') !== -1) {
-          reject(new Error('no such path'));
+          reason = 'no such path';
         } else if (encodedStderr.match('fatal: A branch named \'(.+?)\' already exists.')) {
-          reject(new Error('same branch name'));
-        }
-
-        let reason = '';
-        if (stderr) {
+          reason = 'same branch name';
+        } else if (stderr.length !== 0) {
           reason = iconv.decode(stderr, 'utf-8');
-        } else if (stdout) {
+        } else if (stdout.length !== 0) {
           reason = iconv.decode(stdout, 'utf-8');
         } else {
           reason = 'something goes wrong. but there is no stderr or stdout either';
         }
-        reject(reason);
+
+        const error = new Error(reason);
+        error.command = command;
+
+        console.log('reason', reason, 'command', command);
+        reject(error);
       }
 
       resolve(iconv.decode(stdout, 'utf-8'));
