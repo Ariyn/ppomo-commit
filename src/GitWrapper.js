@@ -39,7 +39,7 @@ async function command(path, command) {
   });
 }
 
-async function gitStatus(path, { branch }) {
+async function gitStatus(path, { branch } = { branch: undefined }) {
   let options = '';
   if (branch) {
     options += ` --branch ${branch}`;
@@ -97,12 +97,14 @@ function collectStashes(stashList) {
 }
 
 async function gitStash(path, options = {}) {
+  let cmd = 'git stash';
+
   let option = '';
 
   if (options.push) {
     option = ` push -a -m ${PPOMO_STASH_PREFIX}${options.name ? options.name : ''}`;
   } else if (options.apply) {
-    option = ' apply';
+    cmd = 'git checkout stash -- .';
   } else if (options.pop) {
     option = ' pop';
   } else if (options.list) {
@@ -111,12 +113,10 @@ async function gitStash(path, options = {}) {
     option = ' drop';
     if (options.index) {
       option += ` ${options.index}`;
-      // } else if (options.name) {
-      //     options += ' '
     }
   }
 
-  const cmd = `git stash${option}`;
+  cmd = `${cmd}${option}`;
 
   if (options.list) {
     const stashes = (await command(path, cmd)).split('\n').map(stash => stash.trim()).filter(stash => stash.length !== 0);
